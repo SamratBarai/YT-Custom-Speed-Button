@@ -1,0 +1,162 @@
+/* Custom Speed Controller Button inside player controls */
+.ytp-custom-speed-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  cursor: pointer;
+  width: auto !important;
+  min-width: 64px;
+  padding: 12px !important;
+  padding-left: 0 !important;
+
+  color: #f0f0f0;
+  background: none;
+  border: none;
+  height: 30px;
+  vertical-align: middle !important;
+  border-radius: 24px;
+
+  position: relative !important;
+  text-align: center !important;
+  line-height: 1 !important;
+  overflow: visible !important;
+}
+
+.ytp-custom-speed-btn:before {
+  width: 100% !important;
+  display: inline-block !important;
+  height: 100% ;
+  border-radius: 24px !important;
+}
+
+html:not([dark]) .ytp-custom-speed-btn:hover,
+html:not([dark]) .ytp-custom-speed-btn:focus {
+  background-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+.ytp-custom-speed-btn svg {
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+  flex-shrink: 0;
+}
+
+#ytp-custom-speed-val {
+  font-weight: 500;
+  font-size: 13px;
+  font-family: "Roboto", Arial, sans-serif;
+  position: static !important;
+  display: inline-block !important;
+  line-height: normal;
+  white-space: nowrap;
+}
+
+/* Master Grid Panel Container */
+.ytp-custom-speed-menu {
+  position: absolute;
+  bottom: 60px;
+  right: 12px;
+  width: 260px;
+  backdrop-filter: var(--yt-frosted-glass-backdrop-filter-override,blur(16px));
+  background: var(--yt-sys-color-baseline--overlay-background-medium,rgba(0,0,0,.6));
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+  z-index: 2147483647;
+  padding: 10px;
+  box-sizing: border-box;
+  font-family: "Roboto", Arial, sans-serif;
+  color: #fff;
+  display: none;
+  backdrop-filter: blur(8px);
+}
+
+
+html:not([dark]) .ytp-custom-speed-menu,
+html[system-dark="false"] .ytp-custom-speed-menu {
+  background: rgba(255, 255, 255, 0.98);
+  color: #0f0f0f;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+.ytp-custom-speed-menu.show {
+  display: block;
+}
+
+.ytp-custom-menu-title {
+  font-size: 13px;
+  font-weight: bold;
+  padding: 4px 4px 8px 4px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  margin-bottom: 8px;
+}
+
+html:not([dark]) .ytp-custom-menu-title {
+  border-bottom: 1px solid rgba(0,0,0,0.1);
+}
+
+/* Multirow CSS Grid Layout */
+.ytp-custom-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* Custom individual speed nodes */
+.ytp-custom-speed-item {
+  padding: 6px 2px;
+  text-align: center;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.08);
+  transition: background 0.15s ease;
+}
+
+html:not([dark]) .ytp-custom-speed-item {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.ytp-custom-speed-item:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+html:not([dark]) .ytp-custom-speed-item:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.ytp-custom-speed-item.active {
+  background: #ff0000 !important;
+  color: #fff !important;
+  font-weight: bold;
+}
+
+/* Fine-grained slider control */
+.ytp-custom-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+
+html:not([dark]) .ytp-custom-slider-row {
+  border-top: 1px solid rgba(0,0,0,0.1);
+}
+
+.ytp-custom-speed-slider {
+  flex: 1;
+  accent-color: #ff0000;
+  cursor: pointer;
+  height: 4px;
+}
+
+.ytp-custom-slider-val {
+  font-size: 12px;
+  font-weight: 500;
+  min-width: 38px;
+  text-align: right;
+}
