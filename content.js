@@ -5,6 +5,7 @@
   const SLIDER_STEP = 0.05;
   let activeSpeeds = [...defaultSpeeds];
   let uiCheckInterval = null;
+  let keyboardHandler = null;
 
   // Sync with Extension Storage
   function updateSpeedConfiguration() {
@@ -22,6 +23,85 @@
     }
   });
 
+  // Returns the index in activeSpeeds closest to the given rate
+  function findNearestSpeedIndex(rate) {
+    let closestIdx = 0;
+    let closestDiff = Infinity;
+    activeSpeeds.forEach((speed, i) => {
+      const diff = Math.abs(speed - rate);
+      if (diff < closestDiff) {
+        closestDiff = diff;
+        closestIdx = i;
+      }
+    });
+    return closestIdx;
+  }
+
+  // Keyboard Shortcut Handler — intercepts Shift+, and Shift+. before YouTube does
+  function setupKeyboardShortcuts() {
+    if (keyboardHandler) {
+      document.removeEventListener('keydown', keyboardHandler, true);
+    }
+
+    keyboardHandler = (e) => {
+      if (!location.pathname.startsWith('/watch')) return;
+      if (!e.shiftKey) return;
+
+      // Don't fire when the user is typing somewhere
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
+
+      const isDecrease = e.code === 'Comma';   // Shift+,  →  <
+      const isIncrease = e.code === 'Period';  // Shift+.  →  >
+      if (!isDecrease && !isIncrease) return;
+
+      const player = document.querySelector('ytd-watch-flexy #movie_player') || document.querySelector('.html5-video-player');
+      if (!player) return;
+      const video = player.querySelector('video');
+      if (!video || activeSpeeds.length === 0) return;
+
+      // Block YouTube's own Shift+,/. handler
+      e.stopImmediatePropagation();
+      e.preventDefault();
+
+      const currentIdx = findNearestSpeedIndex(video.playbackRate);
+      const newRate = isDecrease
+        ? activeSpeeds[Math.max(0, currentIdx - 1)]
+        : activeSpeeds[Math.min(activeSpeeds.length - 1, currentIdx + 1)];
+      video.playbackRate = newRate;
+      showSpeedOSD(player, newRate, isDecrease);
+    };
+
+    // capture: true ensures we run before YouTube's own listeners
+    document.addEventListener('keydown', keyboardHandler, true);
+  }
+
+  // Brief on-screen speed indicator — mirrors YouTube's native bezel that we suppress
+  function showSpeedOSD(player, rate, isDecrease) {
+    let osd = player.querySelector('#ytp-custom-speed-osd');
+    if (!osd) {
+      osd = document.createElement('div');
+      osd.id = 'ytp-custom-speed-osd';
+      player.appendChild(osd);
+    }
+
+    // Arrow direction + speed value, e.g. "◀◀  0.75×" or "▶▶  1.5×"
+    const arrows = isDecrease ? '◀◀' : '▶▶';
+    const label = document.createTextNode(`${formatSpeed(rate)}×`);
+    const arrowSpan = document.createElement('span');
+    arrowSpan.className = 'ytp-osd-arrows';
+    arrowSpan.textContent = arrows;
+
+    while (osd.firstChild) osd.removeChild(osd.firstChild);
+    osd.appendChild(arrowSpan);
+    osd.appendChild(label);
+
+    // Restart animation cleanly
+    osd.classList.remove('ytp-custom-speed-osd');
+    void osd.offsetWidth; // force reflow
+    osd.classList.add('ytp-custom-speed-osd');
+  }
+
   // Structural Injection System
   function injectSpeedController() {
     // Target the main watch player specifically to avoid ghost players
@@ -37,7 +117,6 @@
     const controlButton = document.createElement('button');
     controlButton.id = 'ytp-custom-speed-ctrl';
     controlButton.className = 'ytp-button ytp-custom-speed-btn';
-    controlButton.title = 'Custom Playback Speed';
 
     const svgNS = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(svgNS, "svg");
@@ -60,7 +139,7 @@
 
     controlButton.appendChild(svg);
     controlButton.appendChild(valSpan);
-    
+
     // 2. Create Grid Popover Element safely without innerHTML
     const menuPanel = document.createElement('div');
     menuPanel.id = 'ytp-custom-speed-panel';
@@ -111,9 +190,40 @@
       return;
     }
 
+    // Tooltip — appended to player root so it sits above the progress bar,
+    // matching how YouTube positions its own control-bar tooltips
+    const existingTip = player.querySelector('#ytp-custom-speed-tooltip');
+    if (existingTip) existingTip.remove();
+    const tooltip = document.createElement('div');
+    tooltip.id = 'ytp-custom-speed-tooltip';
+    tooltip.className = 'ytp-custom-speed-tooltip';
+    tooltip.textContent = 'Playback speed (Shift+< / Shift+>)';
+    player.appendChild(tooltip);
+
+    const showTip = () => {
+      if (menuPanel.classList.contains('show')) return;
+      const btnRect = controlButton.getBoundingClientRect();
+      const playerRect = player.getBoundingClientRect();
+      // Horizontal: center on the button
+      tooltip.style.left = `${btnRect.left - playerRect.left + btnRect.width / 2}px`;
+      // Vertical: anchor to the TOP of .ytp-chrome-bottom (the whole scrubber + controls
+      // row), not just the button top — this is how YouTube's own tooltips clear the timeline
+      const chromeBottom = player.querySelector('.ytp-chrome-bottom');
+      const refTop = chromeBottom
+        ? chromeBottom.getBoundingClientRect().top
+        : btnRect.top;
+      tooltip.style.bottom = `${playerRect.bottom - refTop + 8}px`;
+      tooltip.classList.add('visible');
+    };
+    const hideTip = () => tooltip.classList.remove('visible');
+
+    controlButton.addEventListener('mouseenter', showTip);
+    controlButton.addEventListener('mouseleave', hideTip);
+
     // Toggle Display Listeners
     controlButton.addEventListener('click', (e) => {
       e.stopPropagation();
+      hideTip();
       menuPanel.classList.toggle('show');
     });
 
@@ -162,7 +272,7 @@
     const gridContainer = document.getElementById('ytp-speed-grid-target');
     const player = document.querySelector('ytd-watch-flexy #movie_player') || document.querySelector('.html5-video-player');
     if (!gridContainer || !player) return;
-    
+
     const video = player.querySelector('video');
     if (!video) return;
 
@@ -175,7 +285,7 @@
       const item = document.createElement('div');
       item.className = 'ytp-custom-speed-item';
       item.textContent = `${formatSpeed(speed)}x`;
-      
+
       if (video.playbackRate === speed) {
         item.classList.add('active');
       }
@@ -208,6 +318,7 @@
 
     injectSpeedController();
     updateSpeedConfiguration();
+    setupKeyboardShortcuts();
 
     uiCheckInterval = setInterval(() => {
       const isVideoPage = location.pathname.startsWith('/watch');
