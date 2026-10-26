@@ -68,6 +68,17 @@
     .input-group {
       display: flex;
       gap: 6px;
+      flex-direction: column;
+    }
+    .speedControl {
+      display: flex;
+      gap: 6px;
+    }
+    .resetSwitch {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
     }
     input[type="number"] {
       flex: 1;
@@ -92,14 +103,51 @@
     button.add-btn:hover {
       background: var(--add-btn-hover);
     }
+
+    /* Toggle switch */
+    .toggle-switch {
+    display: inline-block;
+    width: 40px;
+    height: 20px;
+    background: #ccc;
+    border-radius: 20px;
+    position: relative;
+    cursor: pointer;
+    }
+    .knob {
+      width: 16px;
+      height: 16px;
+      background: white;
+      border-radius: 50%;
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      transition: 0.3s;
+    }
+    #switch:checked + .toggle-switch {
+      background: #4caf50;
+    }
+    #switch:checked + .toggle-switch .knob {
+      left: 22px;
+    }
   </style>
 </head>
 <body>
   <h3>Custom Speed Values</h3>
   <div class="speed-list" id="speedList"></div>
   <div class="input-group">
-    <input type="number" id="newSpeed" step="0.05" min="0.1" max="16" placeholder="e.g. 2.25">
-    <button class="add-btn" id="addBtn">Add</button>
+    <div class="speedControl">
+      <input type="number" id="newSpeed" step="0.05" min="0.1" max="16" placeholder="e.g. 2.25">
+      <button class="add-btn" id="addBtn">Add</button>
+    </div>
+
+    <div class="resetSwitch">
+      <p>Reset speed for new video:</p>
+      <input type="checkbox" id="switch" hidden>
+      <label for="switch" class="toggle-switch">
+        <span class="knob"></span>
+      </label>
+    </div>
   </div>
   <script src="popup.js"></script>
 </body>

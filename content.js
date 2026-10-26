@@ -6,9 +6,19 @@
   let activeSpeeds = [...defaultSpeeds];
   let uiCheckInterval = null;
   let keyboardHandler = null;
+  let currentVideo = null;
+  let userDefinedSpeed = 1.0;
+  let resetSpeedOnNewVideo = false;
+
+  let menuPanel = player.querySelector('#ytp-custom-speed-panel');
+  let controlButton = player.querySelector('#ytp-custom-speed-ctrl');
 
   // Sync with Extension Storage
   function updateSpeedConfiguration() {
+    chrome.storage.local.get({ resetSpeed: false}, (data) => {
+      resetSpeedOnNewVideo = data.resetSpeed;
+    });
+
     chrome.storage.local.get({ customSpeeds: defaultSpeeds }, (data) => {
       activeSpeeds = data.customSpeeds.sort((a, b) => a - b);
       injectSpeedController();
@@ -20,6 +30,9 @@
     if (changes.customSpeeds) {
       activeSpeeds = changes.customSpeeds.newValue.sort((a, b) => a - b);
       renderGridItems();
+    }
+    if (changes.resetSpeed) {
+      resetSpeedOnNewVideo = changes.resetSpeed.newValue;
     }
   });
 
@@ -69,6 +82,7 @@
         ? activeSpeeds[Math.max(0, currentIdx - 1)]
         : activeSpeeds[Math.min(activeSpeeds.length - 1, currentIdx + 1)];
       video.playbackRate = newRate;
+      userDefinedSpeed = newRate;
       showSpeedOSD(player, newRate, isDecrease);
     };
 
@@ -111,143 +125,167 @@
     const controls = player.querySelector('.ytp-right-controls');
     const video = player.querySelector('video');
 
-    if (!controls || !video || player.querySelector('#ytp-custom-speed-ctrl')) return;
+    if (!controls || !video) return;
+    
+    if (!controlButton) {
 
-    // 1. Create Control Ribbon Button with Native SVG Icon + Text securely without innerHTML
-    const controlButton = document.createElement('button');
-    controlButton.id = 'ytp-custom-speed-ctrl';
-    controlButton.className = 'ytp-button ytp-custom-speed-btn';
+      // 1. Create Control Ribbon Button with Native SVG Icon + Text securely without innerHTML
+      controlButton = document.createElement('button');
+      controlButton.id = 'ytp-custom-speed-ctrl';
+      controlButton.className = 'ytp-button ytp-custom-speed-btn';
 
-    const svgNS = "http://www.w3.org/2000/svg";
-    const svg = document.createElementNS(svgNS, "svg");
-    svg.setAttribute("fill", "none");
-    svg.setAttribute("width", "24");
-    svg.setAttribute("height", "24");
-    svg.setAttribute("viewBox", "0 0 24 24");
-    svg.style.width = "22px";
-    svg.style.height = "22px";
-    svg.style.flexShrink = "0";
+      const svgNS = "http://www.w3.org/2000/svg";
+      const svg = document.createElementNS(svgNS, "svg");
+      svg.setAttribute("fill", "none");
+      svg.setAttribute("width", "24");
+      svg.setAttribute("height", "24");
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.style.width = "22px";
+      svg.style.height = "22px";
+      svg.style.flexShrink = "0";
 
-    const path = document.createElementNS(svgNS, "path");
-    path.setAttribute("fill", "currentColor");
-    path.setAttribute("d", "M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.27-10.44zM10.59 15.41a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z");
-    svg.appendChild(path);
+      const path = document.createElementNS(svgNS, "path");
+      path.setAttribute("fill", "currentColor");
+      path.setAttribute("d", "M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.27-10.44zM10.59 15.41a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z");
+      svg.appendChild(path);
 
-    const valSpan = document.createElement('span');
-    valSpan.id = 'ytp-custom-speed-val';
-    valSpan.textContent = `${formatSpeed(video.playbackRate)}x`;
+      const valSpan = document.createElement('span');
+      valSpan.id = 'ytp-custom-speed-val';
+      valSpan.textContent = `${formatSpeed(video.playbackRate)}x`;
 
-    controlButton.appendChild(svg);
-    controlButton.appendChild(valSpan);
+      controlButton.appendChild(svg);
+      controlButton.appendChild(valSpan);
 
-    // 2. Create Grid Popover Element safely without innerHTML
-    const menuPanel = document.createElement('div');
-    menuPanel.id = 'ytp-custom-speed-panel';
-    menuPanel.className = 'ytp-custom-speed-menu';
+      // 2. Create Grid Popover Element safely without innerHTML
+      menuPanel = document.createElement('div');
+      menuPanel.id = 'ytp-custom-speed-panel';
+      menuPanel.className = 'ytp-custom-speed-menu';
 
-    const menuTitle = document.createElement('div');
-    menuTitle.className = 'ytp-custom-menu-title';
-    menuTitle.textContent = 'Custom Speeds';
+      const menuTitle = document.createElement('div');
+      menuTitle.className = 'ytp-custom-menu-title';
+      menuTitle.textContent = 'Custom Speeds';
 
-    const gridTarget = document.createElement('div');
-    gridTarget.className = 'ytp-custom-grid';
-    gridTarget.id = 'ytp-speed-grid-target';
+      const gridTarget = document.createElement('div');
+      gridTarget.className = 'ytp-custom-grid';
+      gridTarget.id = 'ytp-speed-grid-target';
 
-    const sliderRow = document.createElement('div');
-    sliderRow.className = 'ytp-custom-slider-row';
+      const sliderRow = document.createElement('div');
+      sliderRow.className = 'ytp-custom-slider-row';
 
-    const sliderInput = document.createElement('input');
-    sliderInput.type = 'range';
-    sliderInput.id = 'ytp-custom-speed-slider';
-    sliderInput.className = 'ytp-custom-speed-slider';
-    sliderInput.min = SLIDER_MIN.toString();
-    sliderInput.max = SLIDER_MAX.toString();
-    sliderInput.step = SLIDER_STEP.toString();
-    sliderInput.value = Math.min(Math.max(video.playbackRate, SLIDER_MIN), SLIDER_MAX).toString();
+      const sliderInput = document.createElement('input');
+      sliderInput.type = 'range';
+      sliderInput.id = 'ytp-custom-speed-slider';
+      sliderInput.className = 'ytp-custom-speed-slider';
+      sliderInput.min = SLIDER_MIN.toString();
+      sliderInput.max = SLIDER_MAX.toString();
+      sliderInput.step = SLIDER_STEP.toString();
+      sliderInput.value = Math.min(Math.max(video.playbackRate, SLIDER_MIN), SLIDER_MAX).toString();
 
-    const sliderValSpan = document.createElement('span');
-    sliderValSpan.className = 'ytp-custom-slider-val';
-    sliderValSpan.id = 'ytp-custom-slider-val';
-    sliderValSpan.textContent = `${formatSpeed(video.playbackRate)}x`;
+      const sliderValSpan = document.createElement('span');
+      sliderValSpan.className = 'ytp-custom-slider-val';
+      sliderValSpan.id = 'ytp-custom-slider-val';
+      sliderValSpan.textContent = `${formatSpeed(video.playbackRate)}x`;
 
-    sliderRow.appendChild(sliderInput);
-    sliderRow.appendChild(sliderValSpan);
+      sliderRow.appendChild(sliderInput);
+      sliderRow.appendChild(sliderValSpan);
 
-    menuPanel.appendChild(menuTitle);
-    menuPanel.appendChild(gridTarget);
-    menuPanel.appendChild(sliderRow);
+      menuPanel.appendChild(menuTitle);
+      menuPanel.appendChild(gridTarget);
+      menuPanel.appendChild(sliderRow);
 
-    // 3. Robust Insertion Phase using safe element.before() wrapper
-    try {
-      const settingsBtn = controls.querySelector('.ytp-settings-button');
-      if (settingsBtn) {
-        settingsBtn.before(controlButton);
-      } else {
-        controls.appendChild(controlButton);
+      // 3. Robust Insertion Phase using safe element.before() wrapper
+      try {
+        const settingsBtn = controls.querySelector('.ytp-settings-button');
+        if (settingsBtn) {
+          settingsBtn.before(controlButton);
+        } else {
+          controls.appendChild(controlButton);
+        }
+        player.appendChild(menuPanel);
+      } catch (err) {
+        return;
       }
-      player.appendChild(menuPanel);
-    } catch (err) {
-      return;
+
+      // Tooltip — appended to player root so it sits above the progress bar,
+      // matching how YouTube positions its own control-bar tooltips
+      const tooltip = document.createElement('div');
+      tooltip.id = 'ytp-custom-speed-tooltip';
+      tooltip.className = 'ytp-custom-speed-tooltip';
+      tooltip.textContent = 'Playback speed (Shift+< / Shift+>)';
+      player.appendChild(tooltip);
+
+      const showTip = () => {
+        if (menuPanel.classList.contains('show')) return;
+        const btnRect = controlButton.getBoundingClientRect();
+        const playerRect = player.getBoundingClientRect();
+        // Horizontal: center on the button
+        tooltip.style.left = `${btnRect.left - playerRect.left + btnRect.width / 2}px`;
+        // Vertical: anchor to the TOP of .ytp-chrome-bottom (the whole scrubber + controls
+        // row), not just the button top — this is how YouTube's own tooltips clear the timeline
+        const chromeBottom = player.querySelector('.ytp-chrome-bottom');
+        const refTop = chromeBottom
+          ? chromeBottom.getBoundingClientRect().top
+          : btnRect.top;
+        tooltip.style.bottom = `${playerRect.bottom - refTop + 8}px`;
+        tooltip.classList.add('visible');
+      };
+      const hideTip = () => tooltip.classList.remove('visible');
+
+      controlButton.addEventListener('mouseenter', showTip);
+      controlButton.addEventListener('mouseleave', hideTip);
+
+      // Toggle Display Listeners
+      controlButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        hideTip();
+        menuPanel.classList.toggle('show');
+      });
+
+      // Continuous slider control
+      const slider = menuPanel.querySelector('#ytp-custom-speed-slider');
+      const sliderVal = menuPanel.querySelector('#ytp-custom-slider-val');
+      slider.addEventListener('input', () => {
+        const rate = parseFloat(slider.value);
+        video.playbackRate = rate;
+        userDefinedSpeed = rate;
+        sliderVal.textContent = `${formatSpeed(rate)}x`;
+      });
+    } else {
+      if (!controls.contains(controlButton)) {
+        const settingsBtn = controls.querySelector('.ytp-settings-button');
+        if (settingsBtn) {
+          settingsBtn.before(controlButton);
+        } else {
+          controls.appendChild(controlButton);
+        }
+      }
     }
 
-    // Tooltip — appended to player root so it sits above the progress bar,
-    // matching how YouTube positions its own control-bar tooltips
-    const existingTip = player.querySelector('#ytp-custom-speed-tooltip');
-    if (existingTip) existingTip.remove();
-    const tooltip = document.createElement('div');
-    tooltip.id = 'ytp-custom-speed-tooltip';
-    tooltip.className = 'ytp-custom-speed-tooltip';
-    tooltip.textContent = 'Playback speed (Shift+< / Shift+>)';
-    player.appendChild(tooltip);
-
-    const showTip = () => {
-      if (menuPanel.classList.contains('show')) return;
-      const btnRect = controlButton.getBoundingClientRect();
-      const playerRect = player.getBoundingClientRect();
-      // Horizontal: center on the button
-      tooltip.style.left = `${btnRect.left - playerRect.left + btnRect.width / 2}px`;
-      // Vertical: anchor to the TOP of .ytp-chrome-bottom (the whole scrubber + controls
-      // row), not just the button top — this is how YouTube's own tooltips clear the timeline
-      const chromeBottom = player.querySelector('.ytp-chrome-bottom');
-      const refTop = chromeBottom
-        ? chromeBottom.getBoundingClientRect().top
-        : btnRect.top;
-      tooltip.style.bottom = `${playerRect.bottom - refTop + 8}px`;
-      tooltip.classList.add('visible');
-    };
-    const hideTip = () => tooltip.classList.remove('visible');
-
-    controlButton.addEventListener('mouseenter', showTip);
-    controlButton.addEventListener('mouseleave', hideTip);
-
-    // Toggle Display Listeners
-    controlButton.addEventListener('click', (e) => {
-      e.stopPropagation();
-      hideTip();
-      menuPanel.classList.toggle('show');
-    });
-
-    document.addEventListener('click', (e) => {
-      if (!menuPanel.contains(e.target) && e.target !== controlButton) {
-        menuPanel.classList.remove('show');
+    if (currentVideo !== video) {
+      if (currentVideo) {
+        currentVideo.removeEventListener('ratechange', handleRateChange);
+        currentVideo.removeEventListener('play');
       }
-    });
+      currentVideo = video;
+      currentVideo.addEventListener('ratechange', handleRateChange);
+    }
 
-    // Continuous slider control
-    const slider = menuPanel.querySelector('#ytp-custom-speed-slider');
-    const sliderVal = menuPanel.querySelector('#ytp-custom-slider-val');
-    slider.addEventListener('input', () => {
-      const rate = parseFloat(slider.value);
-      video.playbackRate = rate;
-      sliderVal.textContent = `${formatSpeed(rate)}x`;
-    });
-
-    // Mirror updates when native scripts or shortcuts alter playback speed
-    video.removeEventListener('ratechange', handleRateChange);
-    video.addEventListener('ratechange', handleRateChange);
-
+    if (!resetSpeedOnNewVideo) {
+      currentVideo.playbackRate = userDefinedSpeed; 
+    }
+      
+    handleRateChange({ target: video });
     renderGridItems();
   }
+
+  
+  document.addEventListener('click', (e) => {
+    if (!menuPanel.contains(e.target) && e.target !== controlButton) {
+      menuPanel.classList.remove('show');
+    }
+  });
+
+  setTimeout(() => {console.log(userDefinedSpeed)}, 1);
 
   function formatSpeed(speed) {
     return Math.round(speed * 100) / 100;
@@ -292,6 +330,7 @@
 
       item.addEventListener('click', () => {
         video.playbackRate = speed;
+        userDefinedSpeed = speed;
         const panel = document.getElementById('ytp-custom-speed-panel');
         if (panel) panel.classList.remove('show');
       });

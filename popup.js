@@ -2,6 +2,7 @@ const defaultSpeeds = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
 const speedList = document.getElementById('speedList');
 const newSpeedInput = document.getElementById('newSpeed');
 const addBtn = document.getElementById('addBtn');
+const speedSwitch = document.getElementById('switch');
 
 function loadSpeeds() {
   chrome.storage.local.get({ customSpeeds: defaultSpeeds }, (data) => {
@@ -23,6 +24,14 @@ function loadSpeeds() {
       speedList.appendChild(tag);
     });
   });
+
+  chrome.storage.local.get({resetSpeed: false}, (data) => {
+    speedSwitch.checked = data.resetSpeed;
+  })
+}
+
+function changeResetSwitch() {
+  chrome.storage.local.set({resetSpeed: speedSwitch.checked});
 }
 
 function addSpeed() {
@@ -52,5 +61,7 @@ addBtn.addEventListener('click', addSpeed);
 newSpeedInput.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') addSpeed();
 });
+
+speedSwitch.addEventListener('change', changeResetSwitch);
 
 document.addEventListener('DOMContentLoaded', loadSpeeds);
