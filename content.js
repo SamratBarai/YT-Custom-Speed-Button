@@ -10,6 +10,7 @@
   let userDefinedSpeed = 1.0;
   let resetSpeedOnNewVideo = false;
 
+  const player = document.querySelector('ytd-watch-flexy #movie_player') || document.querySelector('.html5-video-player');
   let menuPanel = player.querySelector('#ytp-custom-speed-panel');
   let controlButton = player.querySelector('#ytp-custom-speed-ctrl');
 
@@ -119,7 +120,7 @@
   // Structural Injection System
   function injectSpeedController() {
     // Target the main watch player specifically to avoid ghost players
-    const player = document.querySelector('ytd-watch-flexy #movie_player') || document.querySelector('.html5-video-player');
+    
     if (!player) return;
 
     const controls = player.querySelector('.ytp-right-controls');
