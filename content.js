@@ -7,12 +7,12 @@
   let uiCheckInterval = null;
   let keyboardHandler = null;
   let currentVideo = null;
+  let currentVideoSrc = '';
   let userDefinedSpeed = 1.0;
   let resetSpeedOnNewVideo = false;
-
-  const player = document.querySelector('ytd-watch-flexy #movie_player') || document.querySelector('.html5-video-player');
-  let menuPanel = player.querySelector('#ytp-custom-speed-panel');
-  let controlButton = player.querySelector('#ytp-custom-speed-ctrl');
+  
+  let menuPanel = null;
+  let controlButton = null;
 
   // Sync with Extension Storage
   function updateSpeedConfiguration() {
@@ -84,6 +84,7 @@
         : activeSpeeds[Math.min(activeSpeeds.length - 1, currentIdx + 1)];
       video.playbackRate = newRate;
       userDefinedSpeed = newRate;
+      chrome.storage.local.set({ userSpeed: newRate });
       showSpeedOSD(player, newRate, isDecrease);
     };
 
@@ -120,8 +121,12 @@
   // Structural Injection System
   function injectSpeedController() {
     // Target the main watch player specifically to avoid ghost players
+    const player = document.querySelector('ytd-watch-flexy #movie_player') || document.querySelector('.html5-video-player');
     
     if (!player) return;
+
+    menuPanel = player.querySelector('#ytp-custom-speed-panel');
+    controlButton = player.querySelector('#ytp-custom-speed-ctrl');
 
     const controls = player.querySelector('.ytp-right-controls');
     const video = player.querySelector('video');
@@ -249,6 +254,7 @@
         const rate = parseFloat(slider.value);
         video.playbackRate = rate;
         userDefinedSpeed = rate;
+        chrome.storage.local.set({ userSpeed: rate });
         sliderVal.textContent = `${formatSpeed(rate)}x`;
       });
     } else {
@@ -262,31 +268,56 @@
       }
     }
 
-    if (currentVideo !== video) {
-      if (currentVideo) {
+    // Detect if it's either a brand new video element OR the same element with a new video source (SPA navigation)
+    const isNewVideoElement = currentVideo !== video;
+    const isNewVideoSource = video.currentSrc && video.currentSrc !== currentVideoSrc;
+
+    if (isNewVideoElement || isNewVideoSource) {
+      if (currentVideo && isNewVideoElement) {
         currentVideo.removeEventListener('ratechange', handleRateChange);
-        currentVideo.removeEventListener('play');
       }
+
       currentVideo = video;
-      currentVideo.addEventListener('ratechange', handleRateChange);
+      currentVideoSrc = video.currentSrc || '';
+      
+      if (isNewVideoElement) {
+        currentVideo.addEventListener('ratechange', handleRateChange);
+      }
+
+      // Delay enforcement slightly to beat YouTube's native cookie speed application
+      setTimeout(() => {
+        if (!video) return;
+        if (!resetSpeedOnNewVideo) {
+          video.playbackRate = userDefinedSpeed;
+        } else {
+          video.playbackRate = 1.0;
+        }
+      }, 150);
+
+      // Re-apply when metadata loads or playback starts for the new video source
+      const handleNewVideoReady = () => {
+        if (!video) return;
+        if (!resetSpeedOnNewVideo && video.playbackRate !== userDefinedSpeed) {
+          video.playbackRate = userDefinedSpeed;
+        }
+      };
+
+      video.addEventListener('loadedmetadata', handleNewVideoReady, { once: true });
+      video.addEventListener('play', handleNewVideoReady, { once: true });
     }
 
-    if (!resetSpeedOnNewVideo) {
-      currentVideo.playbackRate = userDefinedSpeed; 
-    }
-      
     handleRateChange({ target: video });
     renderGridItems();
   }
 
   
   document.addEventListener('click', (e) => {
+    if (!menuPanel || !controlButton) return;
+
     if (!menuPanel.contains(e.target) && e.target !== controlButton) {
       menuPanel.classList.remove('show');
     }
   });
-
-  setTimeout(() => {console.log(userDefinedSpeed)}, 1);
 
   function formatSpeed(speed) {
     return Math.round(speed * 100) / 100;
@@ -332,6 +363,7 @@
       item.addEventListener('click', () => {
         video.playbackRate = speed;
         userDefinedSpeed = speed;
+        chrome.storage.local.set({ userSpeed: speed });
         const panel = document.getElementById('ytp-custom-speed-panel');
         if (panel) panel.classList.remove('show');
       });
@@ -363,7 +395,10 @@
     uiCheckInterval = setInterval(() => {
       const isVideoPage = location.pathname.startsWith('/watch');
       if (isVideoPage) {
-        injectSpeedController();
+        const player = document.querySelector('ytd-watch-flexy #movie_player') || document.querySelector('.html5-video-player');
+        if (player && !player.querySelector('#ytp-custom-speed-ctrl')) {
+          injectSpeedController();
+        }
       }
     }, 500);
   }
